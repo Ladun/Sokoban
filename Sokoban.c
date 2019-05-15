@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <Windows.h>
 #include <io.h>
 #include <string.h>
 
@@ -27,61 +26,67 @@
 #define NUMBER_OF_MAPS 5
 
 #define MAPSIZE 31
+
+
+// 위치 정보를 가지는 구조체
 typedef struct _tagPosition {
-	int x;
+	int x;						
 	int	y;
 }POSITION, *PPOSITION;
 
+// 맵의 정보를 가지고 있는 구조체
 typedef struct _tagMapData {
-	int map[MAPSIZE][MAPSIZE];
-	int width, height;
-	POSITION playerInitPos;
+	int map[MAPSIZE][MAPSIZE];	// 맵 정보를 저장하는 배열
+	int width, height;			// 맵의 높이와 길이
+	POSITION playerInitPos;		// 플레이어의 시작점
 
 }MAPDATA, *PMAPDATA;
 
+// 움직인 정보를 가지는 구조체
 typedef struct _tagMoveInfo {
-	POSITION delta;
-	POSITION goldPosition;
+	POSITION delta;				// 얼마만큼 움직였는지
+	POSITION goldPosition;		// 움직인 후 금의 위치
 }MOVEINFO, *PMOVEINFO;
 
+// 랭킹 정보를 가지는 구조체
 typedef struct _tagRankingInfo {
-	char name[10];
-	int moveCount;
+	char name[10];				// 플레이어의 이름
+	int moveCount;				// 움직인 횟수
 }RANKING, *PRANKING;
 
-void gotoxy(int x, int y);
-int Len(char *s);
-int MapLoading(); 
-int SetMap(int level);
-int IsInMap(POSITION _pos);
-void Input();
-void Render();
+void gotoxy(int x, int y);		// 화면의 커서를 움직이는 함수
+int Len(char *s);				// 문자열의 길이를 출력하는 함수
+int MapLoading();				// map파일로부터 맵을 로딩하는 함수
+int SetMap(int level);			// 현재 플레이할 맵을 레벨이 level인 맵으로 변경
+int IsInMap(POSITION _pos);		// _pos가 맵 안에 있는 위치인지
+void Input();					// 입력을 담당하는 함수
+void Render();					// 화면 출력을 담당하는 함수
 void Move(int delX,int delY,int undoMoving); // x축으로 delX만큼, y로 delY 만큼
-void Undo();
-void New();
-void DisplayHelp();
-int Save();
-int FileLoad();
-int RankingSave();
-int RankingLoad();
-void RankingDisplay();
-int Clear();
+void Undo();					// Undo 기능
+void New();						// 새로시작
+void DisplayHelp();				// 명령어를 출력하는 함수
+int Save();						// 현재 맵 상태를 저장하는 함수
+int FileLoad();					// sokoban파일로부터 저장된 내용을 불러와 적용시키는 함수
+int RankingSave();				// 랭킹을 저장하는 함수
+int RankingLoad();				// top파일로부터 랭킹 정보를 가져오는 함수 
+void RankingDisplay();			// 랭킹을 출력하는 함수
+int Clear();					// 게임을 클리어 했는지 확인하는 함수
 
 // 저장되어야할 정보
-char name[10];				// 이름
-int movingCount;			// 움직인 개수
-int undoCount = 5;		// undo할 수 있는 횟수
-int currentLevel = 0;		// 현재 맵의 레벨 0 ~ 4
-MAPDATA cMapData;			// 여기의 map 변수에는 금의 위치만 표시
-POSITION cPos;				// 캐릭터의 현재 위치
-MOVEINFO moveInfo[5];		// 최근 5번의 이동을 담은 변수
+char		name[10];			// 이름
+int			movingCount;		// 움직인 개수
+int			undoCount = 5;		// undo할 수 있는 횟수
+int			currentLevel = 0;	// 현재 맵의 레벨 0 ~ 4
+MAPDATA		cMapData;			// 여기의 map 변수에는 금의 위치만 표시
+POSITION	cPos;				// 캐릭터의 현재 위치
+MOVEINFO	moveInfo[5];		// 최근 5번의 이동을 담은 변수
 
 // 저장되지 않아도 되는 정보
-MAPDATA mapData[NUMBER_OF_MAPS];			// File로 부터 받아온 맵 정보
-int topPressedBeforeFrame;	// 이전에 TOP키가 눌렸는지
-int showTopLevel = 0;		// 랭킹을 볼 맵의 레벨
-int isPlay = 1;	
-RANKING rankingList[NUMBER_OF_MAPS][5]; // [레벨][5위까지][이름, 이동 수]
+MAPDATA		mapData[NUMBER_OF_MAPS];		// File로 부터 받아온 맵 정보
+int			topPressedBeforeFrame;			// 이전 프레임에서 TOP키가 눌렸는지
+int			showTopLevel = 0;				// 랭킹을 볼 맵의 레벨, 0 = 전체, 1 ~ 5 = 레벨
+int			isPlay = 1;						// 현재 게임이 실행중인지.
+RANKING		rankingList[NUMBER_OF_MAPS][5];	// [레벨][5위까지][이름, 이동 수]
 
 
 /*
@@ -96,6 +101,7 @@ RANKING rankingList[NUMBER_OF_MAPS][5]; // [레벨][5위까지][이름, 이동 수]
 - d(display help) : 명령 내용 보여줌
 - t(top) : . t . t 게임 순위 보여줌 만 입력하면 전체 순위 다음 숫자가 오면 해당 맵W의 순위
 */
+
 int main() {
 	
 	if (!MapLoading()) {
@@ -604,8 +610,7 @@ int IsInMap(POSITION _pos) {
 	return 1;
 }
 
-void gotoxy(int x, int y)
-{
-	COORD Pos = { x, y };
-	SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), Pos);
+void gotoxy(int x, int y) {
+	printf("\033[%d;%df", y, x);
+	fflush(stdout);
 }
