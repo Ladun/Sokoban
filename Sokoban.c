@@ -1,7 +1,9 @@
-#include <stdio.h>
+ï»¿#include <stdio.h>
 #include <stdlib.h>
 #include <io.h>
 #include <string.h>
+#include <termios.h>
+#include <unistd.h>
 
 #define LEFT 104
 #define UP 107
@@ -15,7 +17,8 @@
 #define FILE_LOAD 102
 #define DISPLAY_HELP 100
 #define TOP 116
-#define ENTER 13
+#define LF 10
+#define CR 13
 
 #define WALL 35
 #define EMPTY 46
@@ -28,104 +31,107 @@
 #define MAPSIZE 31
 
 
-// À§Ä¡ Á¤º¸¸¦ °¡Áö´Â ±¸Á¶Ã¼
+// ìœ„ì¹˜ ì •ë³´ë¥¼ ê°€ì§€ëŠ” êµ¬ì¡°ì²´
 typedef struct _tagPosition {
 	int x;						
 	int	y;
 }POSITION, *PPOSITION;
 
-// ¸ÊÀÇ Á¤º¸¸¦ °¡Áö°í ÀÖ´Â ±¸Á¶Ã¼
+// ë§µì˜ ì •ë³´ë¥¼ ê°€ì§€ê³  ìˆëŠ” êµ¬ì¡°ì²´
 typedef struct _tagMapData {
-	int map[MAPSIZE][MAPSIZE];	// ¸Ê Á¤º¸¸¦ ÀúÀåÇÏ´Â ¹è¿­
-	int width, height;			// ¸ÊÀÇ ³ôÀÌ¿Í ±æÀÌ
-	POSITION playerInitPos;		// ÇÃ·¹ÀÌ¾îÀÇ ½ÃÀÛÁ¡
+	int map[MAPSIZE][MAPSIZE];	// ë§µ ì •ë³´ë¥¼ ì €ì¥í•˜ëŠ” ë°°ì—´
+	int width, height;			// ë§µì˜ ë†’ì´ì™€ ê¸¸ì´
+	POSITION playerInitPos;		// í”Œë ˆì´ì–´ì˜ ì‹œì‘ì 
 
 }MAPDATA, *PMAPDATA;
 
-// ¿òÁ÷ÀÎ Á¤º¸¸¦ °¡Áö´Â ±¸Á¶Ã¼
+// ì›€ì§ì¸ ì •ë³´ë¥¼ ê°€ì§€ëŠ” êµ¬ì¡°ì²´
 typedef struct _tagMoveInfo {
-	POSITION delta;				// ¾ó¸¶¸¸Å­ ¿òÁ÷¿´´ÂÁö
-	POSITION goldPosition;		// ¿òÁ÷ÀÎ ÈÄ ±İÀÇ À§Ä¡
+	POSITION delta;				// ì–¼ë§ˆë§Œí¼ ì›€ì§ì˜€ëŠ”ì§€
+	POSITION goldPosition;		// ì›€ì§ì¸ í›„ ê¸ˆì˜ ìœ„ì¹˜
 }MOVEINFO, *PMOVEINFO;
 
-// ·©Å· Á¤º¸¸¦ °¡Áö´Â ±¸Á¶Ã¼
+// ë­í‚¹ ì •ë³´ë¥¼ ê°€ì§€ëŠ” êµ¬ì¡°ì²´
 typedef struct _tagRankingInfo {
-	char name[10];				// ÇÃ·¹ÀÌ¾îÀÇ ÀÌ¸§
-	int moveCount;				// ¿òÁ÷ÀÎ È½¼ö
+	char name[10];				// í”Œë ˆì´ì–´ì˜ ì´ë¦„
+	int moveCount;				// ì›€ì§ì¸ íšŸìˆ˜
 }RANKING, *PRANKING;
 
-void gotoxy(int x, int y);		// È­¸éÀÇ Ä¿¼­¸¦ ¿òÁ÷ÀÌ´Â ÇÔ¼ö
-int Len(char *s);				// ¹®ÀÚ¿­ÀÇ ±æÀÌ¸¦ Ãâ·ÂÇÏ´Â ÇÔ¼ö
-int MapLoading();				// mapÆÄÀÏ·ÎºÎÅÍ ¸ÊÀ» ·ÎµùÇÏ´Â ÇÔ¼ö
-int SetMap(int level);			// ÇöÀç ÇÃ·¹ÀÌÇÒ ¸ÊÀ» ·¹º§ÀÌ levelÀÎ ¸ÊÀ¸·Î º¯°æ
-int IsInMap(POSITION _pos);		// _pos°¡ ¸Ê ¾È¿¡ ÀÖ´Â À§Ä¡ÀÎÁö
-void Input();					// ÀÔ·ÂÀ» ´ã´çÇÏ´Â ÇÔ¼ö
-void Render();					// È­¸é Ãâ·ÂÀ» ´ã´çÇÏ´Â ÇÔ¼ö
-void Move(int delX,int delY,int undoMoving); // xÃàÀ¸·Î delX¸¸Å­, y·Î delY ¸¸Å­
-void Undo();					// Undo ±â´É
-void New();						// »õ·Î½ÃÀÛ
-void DisplayHelp();				// ¸í·É¾î¸¦ Ãâ·ÂÇÏ´Â ÇÔ¼ö
-int Save();						// ÇöÀç ¸Ê »óÅÂ¸¦ ÀúÀåÇÏ´Â ÇÔ¼ö
-int FileLoad();					// sokobanÆÄÀÏ·ÎºÎÅÍ ÀúÀåµÈ ³»¿ëÀ» ºÒ·¯¿Í Àû¿ë½ÃÅ°´Â ÇÔ¼ö
-int RankingSave();				// ·©Å·À» ÀúÀåÇÏ´Â ÇÔ¼ö
-int RankingLoad();				// topÆÄÀÏ·ÎºÎÅÍ ·©Å· Á¤º¸¸¦ °¡Á®¿À´Â ÇÔ¼ö 
-void RankingDisplay();			// ·©Å·À» Ãâ·ÂÇÏ´Â ÇÔ¼ö
-int Clear();					// °ÔÀÓÀ» Å¬¸®¾î Çß´ÂÁö È®ÀÎÇÏ´Â ÇÔ¼ö
+int getch();				// í™”ë©´ì— ë¬¸ìë¥¼ ì¶œë ¥í•˜ì§€ ì•Šê³  ì…ë ¥ì„ ë°›ëŠ” í•¨ìˆ˜
+void gotoxy(int x, int y);		// í™”ë©´ì˜ ì»¤ì„œë¥¼ ì›€ì§ì´ëŠ” í•¨ìˆ˜
+int Len(char *s);				// ë¬¸ìì—´ì˜ ê¸¸ì´ë¥¼ ì¶œë ¥í•˜ëŠ” í•¨ìˆ˜
+int MapLoading();				// mapíŒŒì¼ë¡œë¶€í„° ë§µì„ ë¡œë”©í•˜ëŠ” í•¨ìˆ˜
+int SetMap(int level);			// í˜„ì¬ í”Œë ˆì´í•  ë§µì„ ë ˆë²¨ì´ levelì¸ ë§µìœ¼ë¡œ ë³€ê²½
+int IsInMap(POSITION _pos);		// _posê°€ ë§µ ì•ˆì— ìˆëŠ” ìœ„ì¹˜ì¸ì§€
+void Input();					// ì…ë ¥ì„ ë‹´ë‹¹í•˜ëŠ” í•¨ìˆ˜
+void Render();					// í™”ë©´ ì¶œë ¥ì„ ë‹´ë‹¹í•˜ëŠ” í•¨ìˆ˜
+void Move(int delX,int delY,int undoMoving); // xì¶•ìœ¼ë¡œ delXë§Œí¼, yë¡œ delY ë§Œí¼
+void Undo();					// Undo ê¸°ëŠ¥
+void New();						// ìƒˆë¡œì‹œì‘
+void DisplayHelp();				// ëª…ë ¹ì–´ë¥¼ ì¶œë ¥í•˜ëŠ” í•¨ìˆ˜
+int Save();						// í˜„ì¬ ë§µ ìƒíƒœë¥¼ ì €ì¥í•˜ëŠ” í•¨ìˆ˜
+int FileLoad();					// sokobaníŒŒì¼ë¡œë¶€í„° ì €ì¥ëœ ë‚´ìš©ì„ ë¶ˆëŸ¬ì™€ ì ìš©ì‹œí‚¤ëŠ” í•¨ìˆ˜
+int RankingSave();				// ë­í‚¹ì„ ì €ì¥í•˜ëŠ” í•¨ìˆ˜
+int RankingLoad();				// topíŒŒì¼ë¡œë¶€í„° ë­í‚¹ ì •ë³´ë¥¼ ê°€ì ¸ì˜¤ëŠ” í•¨ìˆ˜ 
+void RankingDisplay();			// ë­í‚¹ì„ ì¶œë ¥í•˜ëŠ” í•¨ìˆ˜
+int Clear();					// ê²Œì„ì„ í´ë¦¬ì–´ í–ˆëŠ”ì§€ í™•ì¸í•˜ëŠ” í•¨ìˆ˜
 
-// ÀúÀåµÇ¾î¾ßÇÒ Á¤º¸
-char		name[10];			// ÀÌ¸§
-int			movingCount;		// ¿òÁ÷ÀÎ °³¼ö
-int			undoCount = 5;		// undoÇÒ ¼ö ÀÖ´Â È½¼ö
-int			currentLevel = 0;	// ÇöÀç ¸ÊÀÇ ·¹º§ 0 ~ 4
-MAPDATA		cMapData;			// ¿©±âÀÇ map º¯¼ö¿¡´Â ±İÀÇ À§Ä¡¸¸ Ç¥½Ã
-POSITION	cPos;				// Ä³¸¯ÅÍÀÇ ÇöÀç À§Ä¡
-MOVEINFO	moveInfo[5];		// ÃÖ±Ù 5¹øÀÇ ÀÌµ¿À» ´ãÀº º¯¼ö
+// ì €ì¥ë˜ì–´ì•¼í•  ì •ë³´
+char		name[10];			// ì´ë¦„
+int			movingCount;		// ì›€ì§ì¸ ê°œìˆ˜
+int			undoCount = 5;		// undoí•  ìˆ˜ ìˆëŠ” íšŸìˆ˜
+int			currentLevel = 0;	// í˜„ì¬ ë§µì˜ ë ˆë²¨ 0 ~ 4
+MAPDATA		cMapData;			// ì—¬ê¸°ì˜ map ë³€ìˆ˜ì—ëŠ” ê¸ˆì˜ ìœ„ì¹˜ë§Œ í‘œì‹œ
+POSITION	cPos;				// ìºë¦­í„°ì˜ í˜„ì¬ ìœ„ì¹˜
+MOVEINFO	moveInfo[5];		// ìµœê·¼ 5ë²ˆì˜ ì´ë™ì„ ë‹´ì€ ë³€ìˆ˜
 
-// ÀúÀåµÇÁö ¾Ê¾Æµµ µÇ´Â Á¤º¸
-MAPDATA		mapData[NUMBER_OF_MAPS];		// File·Î ºÎÅÍ ¹Ş¾Æ¿Â ¸Ê Á¤º¸
-int			topPressedBeforeFrame;			// ÀÌÀü ÇÁ·¹ÀÓ¿¡¼­ TOPÅ°°¡ ´­·È´ÂÁö
-int			showTopLevel = 0;				// ·©Å·À» º¼ ¸ÊÀÇ ·¹º§, 0 = ÀüÃ¼, 1 ~ 5 = ·¹º§
-int			isPlay = 1;						// ÇöÀç °ÔÀÓÀÌ ½ÇÇàÁßÀÎÁö.
-RANKING		rankingList[NUMBER_OF_MAPS][5];	// [·¹º§][5À§±îÁö][ÀÌ¸§, ÀÌµ¿ ¼ö]
+// ì €ì¥ë˜ì§€ ì•Šì•„ë„ ë˜ëŠ” ì •ë³´
+MAPDATA		mapData[NUMBER_OF_MAPS];		// Fileë¡œ ë¶€í„° ë°›ì•„ì˜¨ ë§µ ì •ë³´
+int			topPressedBeforeFrame;			// ì´ì „ í”„ë ˆì„ì—ì„œ TOPí‚¤ê°€ ëˆŒë ¸ëŠ”ì§€
+int			showTopLevel = 0;				// ë­í‚¹ì„ ë³¼ ë§µì˜ ë ˆë²¨, 0 = ì „ì²´, 1 ~ 5 = ë ˆë²¨
+int			isPlay = 1;						// í˜„ì¬ ê²Œì„ì´ ì‹¤í–‰ì¤‘ì¸ì§€.
+RANKING		rankingList[NUMBER_OF_MAPS][5];	// [ë ˆë²¨][5ìœ„ê¹Œì§€][ì´ë¦„, ì´ë™ ìˆ˜]
 
 
 /*
-- h(¿ŞÂÊ), j(¾Æ·¡), k(À§), l(¿À¸¥ÂÊ) : ¿ŞÂÊ ¾Æ·¡ À§ ¿À¸¥ÂÊ Ã¢°íÁö±â Á¶Á¤
-- u(undo) : 5 ÃÖ´ë ¹ø ÇÒ ¼ö ÀÖÀ½
-- r(replay) : ( ) ÇöÀç ¸ÊÀ» Ã³À½ºÎÅÍ ´Ù½Ã ½ÃÀÛ ¿òÁ÷ÀÓ È½¼ö´Â °è¼Ó À¯Áö
-- n(new) : ( ) Ã¹ ¹øÂ° ¸ÊºÎÅÍ ´Ù½Ã ½ÃÀÛ ¿òÁ÷ÀÓ È½¼ö ±â·Ï »èÁ¦
-- e(exit) : . °ÔÀÓ Á¾·á Á¾·áÇÏ±â Àü ÇÊ¿äÇÑ Á¤º¸ ÀúÀåÇØ¾ß ÇÔ
-- s(save) : . sokoban ÇöÀç »óÅÂ ÆÄÀÏ¿¡ ÀúÀå ÆÄÀÏ ÀÌ¸§Àº À¸·Î ÇÏ°í ´ÙÀ½¿¡ ´Ù½Ã °ÔÀÓÀ» ¿¬¼ÓÇØ¼­ ÇÒ
-¼ö ÀÖµµ·Ï ¸ğµç »óÅÂ ÀúÀåÇØ¾ß ÇÔ
-- f(file load) : sokoban save ÆÄÀÏ¿¡¼­ ÀúÀåµÈ ³»¿ëÀ» ÀĞ¾î ½ÃÁ¡¿¡¼­ºÎÅÍ ÀÌ¾î¼­ °ÔÀÓÇÏ°Ô ÇÔ
-- d(display help) : ¸í·É ³»¿ë º¸¿©ÁÜ
-- t(top) : . t . t °ÔÀÓ ¼øÀ§ º¸¿©ÁÜ ¸¸ ÀÔ·ÂÇÏ¸é ÀüÃ¼ ¼øÀ§ ´ÙÀ½ ¼ıÀÚ°¡ ¿À¸é ÇØ´ç ¸ÊWÀÇ ¼øÀ§
+- h(ì™¼ìª½), j(ì•„ë˜), k(ìœ„), l(ì˜¤ë¥¸ìª½) : ì™¼ìª½ ì•„ë˜ ìœ„ ì˜¤ë¥¸ìª½ ì°½ê³ ì§€ê¸° ì¡°ì •
+- u(undo) : 5 ìµœëŒ€ ë²ˆ í•  ìˆ˜ ìˆìŒ
+- r(replay) : ( ) í˜„ì¬ ë§µì„ ì²˜ìŒë¶€í„° ë‹¤ì‹œ ì‹œì‘ ì›€ì§ì„ íšŸìˆ˜ëŠ” ê³„ì† ìœ ì§€
+- n(new) : ( ) ì²« ë²ˆì§¸ ë§µë¶€í„° ë‹¤ì‹œ ì‹œì‘ ì›€ì§ì„ íšŸìˆ˜ ê¸°ë¡ ì‚­ì œ
+- e(exit) : . ê²Œì„ ì¢…ë£Œ ì¢…ë£Œí•˜ê¸° ì „ í•„ìš”í•œ ì •ë³´ ì €ì¥í•´ì•¼ í•¨
+- s(save) : . sokoban í˜„ì¬ ìƒíƒœ íŒŒì¼ì— ì €ì¥ íŒŒì¼ ì´ë¦„ì€ ìœ¼ë¡œ í•˜ê³  ë‹¤ìŒì— ë‹¤ì‹œ ê²Œì„ì„ ì—°ì†í•´ì„œ í• 
+ìˆ˜ ìˆë„ë¡ ëª¨ë“  ìƒíƒœ ì €ì¥í•´ì•¼ í•¨
+- f(file load) : sokoban save íŒŒì¼ì—ì„œ ì €ì¥ëœ ë‚´ìš©ì„ ì½ì–´ ì‹œì ì—ì„œë¶€í„° ì´ì–´ì„œ ê²Œì„í•˜ê²Œ í•¨
+- d(display help) : ëª…ë ¹ ë‚´ìš© ë³´ì—¬ì¤Œ
+- t(top) : . t . t ê²Œì„ ìˆœìœ„ ë³´ì—¬ì¤Œ ë§Œ ì…ë ¥í•˜ë©´ ì „ì²´ ìˆœìœ„ ë‹¤ìŒ ìˆ«ìê°€ ì˜¤ë©´ í•´ë‹¹ ë§µWì˜ ìˆœìœ„
 */
 
 int main() {
-	
+
+	// map íŒŒì¼ë¡œ ë¶€í„° ë§µ ì •ë³´ë¥¼ ì½ì–´ì˜´
 	if (!MapLoading()) {
 		fprintf(stderr,"MapLoading() Error\n");
 		return 0;
 	}
 
-	printf("ÀÌ¸§À» ÀÔ·ÂÇÏ½Ê½Ã¿À: ");
+	printf("ì´ë¦„ì„ ì…ë ¥í•˜ì‹­ì‹œì˜¤: ");
 	scanf("%s", name);
 
+	// ì²˜ìŒ ë§µì˜ ì •ë³´ë¥¼ ê°€ì ¸ì™€ì„œ ì ìš©í•¨
 	if (!SetMap(0)) {
 		fprintf(stderr, "Init SetMap() Error\n");
 		return 0;
 	}
-	RankingLoad();
+	RankingLoad(); // ë­í‚¹ ì •ë³´ ë¡œë“œ
 	
 	while (isPlay) {
-		Input();
-		Render();
+		Input(); // ì…ë ¥ ì²˜ë¦¬ ê´€ë ¨ í•¨ìˆ˜
+		Render(); // í™”ë©´ì— ë§µ ì¶œë ¥
 
-		if (Clear()) {
+		if (Clear()) { // ê²Œì„ í´ë¦¬ì–´ í™•ì¸
 
-			system("cls");
-			RankingSave();
+			system("clear");
+			RankingSave(); // ë­í‚¹ì„ ê°±ì‹  í›„ ì €ì¥
 			printf("#####################################\n");
 			printf("#                                   #\n");
 			printf("#                                   #\n");
@@ -141,7 +147,7 @@ int main() {
 
 
 			currentLevel++;
-			New();
+			New(); // ë‹¤ìŒ ë ˆë²¨ì˜ ìƒˆë¡œìš´ ë§µì„ ë¶ˆëŸ¬ì˜´
 		}
 	}
 	
@@ -189,15 +195,16 @@ void Input() {
 		Save();
 		isPlay = 0;
 		break;
-	case ENTER:
+	case LF: // Lind Feed í˜¹ì€
+	case CR: // Carriage return ì´ë©´, ì¦‰ ì—”í„°ê°€ ëˆŒë ¸ìœ¼ë©´
 		if (topPressedBeforeFrame)
 		{
 			RankingDisplay();
 			showTopLevel = 0;
 		}
 	default:
-		if (topPressedBeforeFrame) {
-			if (c - '0' >= 1 && c - '0' <= NUMBER_OF_MAPS) {
+		if (topPressedBeforeFrame) { // ì „ì˜ ì…ë ¥ì´ TOPì´ì˜€ëŠ”ì§€ í™•ì¸
+			if (c - '0' >= 1 && c - '0' <= NUMBER_OF_MAPS) { // ì…ë ¥ ë°›ì€ í‚¤ê°€ '1' ~ '5'ì¸ì§€ í™•ì¸
 				topPressed = 1;
 				showTopLevel = c - '0';
 			}
@@ -209,6 +216,7 @@ void Input() {
 	topPressedBeforeFrame = topPressed;
 }
 
+// í™”ë©´ì— ë§µì„ ì¶œë ¥í•˜ëŠ” í•¨ìˆ˜
 void Render() {
 	gotoxy(0, 0);
 
@@ -227,7 +235,7 @@ void Render() {
 
 	printf("\n");
 	printf("MovingCount: %5d\n",movingCount);
-	printf("undoCount  : %5d", undoCount);
+	printf("undoCount  : %5d\n", undoCount);
 }
 
 void Move(int delX, int delY, int undoMoving) {
@@ -297,8 +305,8 @@ void New() {
 }
 
 void DisplayHelp() {
-	system("cls");
-	printf("h(¿ŞÂÊ), j(¾Æ·¡), k(À§), l(¿À¸¥ÂÊ)\n");
+	system("clear");
+	printf("h(ì™¼ìª½), j(ì•„ë˜), k(ìœ„), l(ì˜¤ë¥¸ìª½)\n");
 	printf("u(undo)\n");
 	printf("r(replay)\n");
 	printf("n(new)\n");
@@ -308,14 +316,14 @@ void DisplayHelp() {
 	printf("d(display help)\n");
 	printf("t(top)\n");
 	getch();
-	system("cls");
+	system("clear");
 }
 
 int Save() {
 	FILE *sokoban;
 
 	if((sokoban = fopen("sokoban.txt","w") ) == NULL) {
-		fprintf(stderr,"sokoban.txt ÆÄÀÏÀ» ºÒ·¯¿ÀÁö ¸ø Çß½À´Ï´Ù.\n");
+		fprintf(stderr,"sokoban.txt íŒŒì¼ì„ ë¶ˆëŸ¬ì˜¤ì§€ ëª» í–ˆìŠµë‹ˆë‹¤.\n");
 		return 0;
 	}
 
@@ -323,7 +331,7 @@ int Save() {
 	fprintf(sokoban, "%d\n", movingCount);
 	fprintf(sokoban, "%d\n", undoCount);
 	fprintf(sokoban, "%d\n", currentLevel);
-	// ¸Ê Á¤º¸ ÀúÀå
+	// ë§µ ì •ë³´ ì €ì¥
 	for (int y = 0; y < cMapData.height; y++)
 		for (int x = 0; x < cMapData.width; x++)
 			fprintf(sokoban, "%d ", cMapData.map[y][x]);
@@ -342,12 +350,12 @@ int FileLoad() {
 	FILE *sokoban;
 
 	if (access("sokoban.txt", 0) == -1) {
-		fprintf(stderr, "sokoban.txt ÆÄÀÏÀÌ Á¸ÀçÇÏÁö ¾Ê½À´Ï´Ù.\n");
+		fprintf(stderr, "sokoban.txt íŒŒì¼ì´ ì¡´ì¬í•˜ì§€ ì•ŠìŠµë‹ˆë‹¤.\n");
 		return 0;
 	}
 
 	if ((sokoban = fopen("sokoban.txt", "r")) == NULL) {
-		fprintf(stderr,"sokoban.txt ÆÄÀÏÀ» ºÒ·¯¿ÀÁö ¸ø Çß½À´Ï´Ù.\n");
+		fprintf(stderr,"sokoban.txt íŒŒì¼ì„ ë¶ˆëŸ¬ì˜¤ì§€ ëª» í–ˆìŠµë‹ˆë‹¤.\n");
 		return 0;
 	}
 	int level;
@@ -368,7 +376,7 @@ int FileLoad() {
 	}
 	fclose(sokoban);
 
-	system("cls");
+	system("clear");
 	Render();
 	return 1;
 }
@@ -401,7 +409,7 @@ int RankingSave() {
 
 	if ((ranking = fopen("ranking.txt", "w")) == NULL)
 	{
-		fprintf(stderr, "ranking.txt ÆÄÀÏÀ» ºÒ·¯¿ÀÁö ¸ø Çß½À´Ï´Ù.\n");
+		fprintf(stderr, "ranking.txt íŒŒì¼ì„ ë¶ˆëŸ¬ì˜¤ì§€ ëª» í–ˆìŠµë‹ˆë‹¤.\n");
 		return 0;
 	}
 
@@ -432,7 +440,7 @@ int RankingLoad() {
 
 	if ((ranking = fopen("ranking.txt", "r")) == NULL)
 	{
-		fprintf(stderr, "ranking.txt ÆÄÀÏÀ» ºÒ·¯¿ÀÁö ¸ø Çß½À´Ï´Ù.\n");
+		fprintf(stderr, "ranking.txt íŒŒì¼ì„ ë¶ˆëŸ¬ì˜¤ì§€ ëª» í–ˆìŠµë‹ˆë‹¤.\n");
 		return 0;
 	}
 
@@ -460,7 +468,7 @@ int RankingLoad() {
 
 void RankingDisplay() {
 	
-	system("cls");
+	system("clear");
 
 	if (showTopLevel == 0) {
 		for (int i = 0; i < NUMBER_OF_MAPS; i++) {
@@ -468,6 +476,13 @@ void RankingDisplay() {
 			for (int j = 0; j < 5; j++) {
 				if (rankingList[i][j].moveCount > 0) {
 					printf("%s %d\n", rankingList[i][j].name, rankingList[i][j].moveCount);
+				}
+				else{
+				    	if(j == 0) 
+					{
+					    printf("None\n");
+					    break;
+					}
 				}
 			}
 		}
@@ -478,37 +493,45 @@ void RankingDisplay() {
 			if (rankingList[showTopLevel - 1][i].moveCount > 0) {
 				printf("%s %d\n", rankingList[showTopLevel - 1][i].name, rankingList[showTopLevel - 1][i].moveCount);
 			}
+			else{
+			    if(i ==0)
+			    {
+				printf("None\n");
+				break;
+			    }
+			}
 		}
 	}
 
 	getch();
+	system("clear");
 }
 
 int MapLoading() {
 	FILE *mapFile;
 
 	if (access("map.txt", 0) == -1) {
-		fprintf(stderr, "map.txt ÆÄÀÏÀÌ Á¸ÀçÇÏÁö ¾Ê½À´Ï´Ù.\n");
+		fprintf(stderr, "map.txt íŒŒì¼ì´ ì¡´ì¬í•˜ì§€ ì•ŠìŠµë‹ˆë‹¤.\n");
 		return 0;
 	}
 	
-	if ((mapFile = fopen("map", "r")) == 0) {
-		printf("map.txt ÆÄÀÏÀ» ºÒ·¯¿ÀÁö ¸ø Çß½À´Ï´Ù.\n");
+	if ((mapFile = fopen("map.txt", "r")) == 0) {
+		printf("map.txt íŒŒì¼ì„ ë¶ˆëŸ¬ì˜¤ì§€ ëª» í–ˆìŠµë‹ˆë‹¤.\n");
 		return 0;
 	}
 
-	char s[MAPSIZE];		// ÇÑ ÁÙ¾¿ ¹Ş¾Æ¿À±â À§ÇÑ º¯¼ö
-	int returnValue = 1;	// ¸®ÅÏ °ª 1 == Á¤»óÀÛµ¿, 0 == ºñÁ¤»óÀÛµ¿
+	char s[MAPSIZE];	// í•œ ì¤„ì”© ë°›ì•„ì˜¤ê¸° ìœ„í•œ ë³€ìˆ˜
+	int returnValue = 1;	// ë¦¬í„´ ê°’ 1 == ì •ìƒì‘ë™, 0 == ë¹„ì •ìƒì‘ë™
 
-	int strLength = 0;	// ÇöÀç ÀĞ¾îµå¸° ¹®ÀÚ¿­ÀÇ ±æÀÌ 
-	int level = -1;		// ÇöÀç ·ÎµåÇÏ´Â ¸ÊÀÇ ·¹º§
-	int currentY = 0;	// ÇöÀç ·Îµå ÁßÀÎ ¸ÊÀÇ YÃà À§Ä¡
+	int strLength = 0;	// í˜„ì¬ ì½ì–´ë“œë¦° ë¬¸ìì—´ì˜ ê¸¸ì´ 
+	int level = -1;		// í˜„ì¬ ë¡œë“œí•˜ëŠ” ë§µì˜ ë ˆë²¨
+	int currentY = 0;	// í˜„ì¬ ë¡œë“œ ì¤‘ì¸ ë§µì˜ Yì¶• ìœ„ì¹˜
 
-	int goldCount = 0, storageCount = 0;
-	while (fscanf(mapFile, "%s",s) > 0) {
+	int goldCount = 0, storageCount = 0; // ê¸ˆê´´ ê°œìˆ˜ì™€ ì €ì¥ì†Œ ê°œìˆ˜ê°€ ë§ëŠ” í™•ì¸í•˜ëŠ” ë³€ìˆ˜
+	while (fscanf(mapFile, "%s",s) != EOF) { // ì…ë ¥ì´ ì¡´ì¬í•˜ë©´
 		strLength = Len(s);
 		if (strLength > 30)		{
-			printf("ÀûÇÕÇÏÁö ¾ÊÀº mapÆÄÀÏÀÔ´Ï´Ù.\n");
+			printf("ì í•©í•˜ì§€ ì•Šì€ mapíŒŒì¼ì…ë‹ˆë‹¤.\n");
 			returnValue = 0;
 			break;
 		}
@@ -518,7 +541,7 @@ int MapLoading() {
 				break;
 			else if (s[0] - '0' > 0) {
 				if (goldCount != storageCount){
-					printf("%d¹ø ¸ÊÀÇ °ñµå¿Í º¸°üÀå¼ÒÀÇ °³¼ö°¡ ¸ÂÁö ¾Ê½À´Ï´Ù.\n", level );
+					printf("%dë²ˆ ë§µì˜ ê³¨ë“œì™€ ë³´ê´€ì¥ì†Œì˜ ê°œìˆ˜ê°€ ë§ì§€ ì•ŠìŠµë‹ˆë‹¤.\n", level );
 					returnValue = 0;
 				}
 				goldCount = 0;
@@ -548,7 +571,7 @@ int MapLoading() {
 				}
 				mapData[level - 1].height = ++currentY;
 				if (currentY + 1 > 30) {
-					printf("ÀûÇÕÇÏÁö ¾ÊÀº mapÆÄÀÏÀÔ´Ï´Ù.\n");
+					printf("ì í•©í•˜ì§€ ì•Šì€ mapíŒŒì¼ì…ë‹ˆë‹¤.\n");
 					returnValue = 0;
 					break;
 				}
@@ -561,13 +584,18 @@ int MapLoading() {
 	return returnValue;
 }
 
+
 int SetMap(int level) {
-	currentLevel = level;
-	if (!(mapData[currentLevel].width > 0 && mapData[currentLevel].height > 0))
+    	
+	currentLevel = level; // í˜„ì¬ ê²Œì„ ë ˆë²¨ì„ levelë¡œ ì„¤ì •
+	if (!(mapData[currentLevel].width > 0 && mapData[currentLevel].height > 0)) // levelì— í•´ë‹¹í•˜ëŠ” ë§µì´ ì¡´ì¬í•˜ì§€ ì•Šìœ¼ë©´ ê²Œì„ ì¢…ë£Œ
 		return 0;
 
-	cMapData.width = mapData[currentLevel].width;
+	cMapData.width = mapData[currentLevel].width; // í˜„ì¬ ë§µì˜ ê¸ˆê´´ ì •ë³´ë¥¼ ë‹´ëŠ” cMapDataì˜ width, height ì„¤ì •
 	cMapData.height = mapData[currentLevel].height;
+
+	// cMapDataëŠ” ê¸ˆê´´ì˜ ì •ë³´ë¥¼ ë‹´ê³  ìˆëŠ” ë°°ì—´ë¡œ 
+	// ì›ë³¸ ë§µì—ì„œ ê¸ˆê´´ìœ„ì¹˜ ë§ê³ ëŠ” EMPTYë¡œ ì´ˆê¸°í™”
 	for (int y = 0; y < cMapData.height; y++) {
 		for (int x = 0; x < cMapData.width; x++) {
 			if (mapData[currentLevel].map[y][x] == GOLD)
@@ -576,18 +604,19 @@ int SetMap(int level) {
 				cMapData.map[y][x] = EMPTY;
 		}
 	}
-	cMapData.playerInitPos = mapData[currentLevel].playerInitPos;
-	cPos = cMapData.playerInitPos;
+	cMapData.playerInitPos = mapData[currentLevel].playerInitPos; // í”Œë ˆì´ì–´ ì´ˆê¸° ìœ„ì¹˜ ì„¤ì •
+	cPos = cMapData.playerInitPos; // í”Œë ˆì´ì–´ì˜ í˜„ì¬ ìœ„ì¹˜ë¥¼ ì´ˆê¸° ìœ„ì¹˜ë¡œ ì„¤ì •
 
-	system("cls");
-	Render();
+	system("clear"); // í™”ë©´ ë¹„ìš°ê¸°
+	Render(); // ë§µ ì¶œë ¥
 	return 1;
 }
 
-int Clear() {
 
+int Clear() {
 	for (int y = 0; y < cMapData.height; y++) {
 		for (int x = 0; x < cMapData.width; x++) {
+		    	// ê¸ˆê´´ ì¤‘ 1ê°œë¼ë„ ì €ì¥ì†Œ ìœ„ì¹˜ì— ìˆì§€ ì•Šë‹¤ë©´ 0 ë°˜í™˜
 			if (cMapData.map[y][x] == GOLD && mapData[currentLevel].map[y][x] != STORAGE)
 				return 0;
 		}
@@ -595,7 +624,9 @@ int Clear() {
 	return 1;
 }
 
+
 int Len(char *s) {
+	// ë¬¸ìì—´ì˜ ì¸ë±ìŠ¤ë¥¼ 0ë¶€í„° í™•ì¸í•˜ë©´ì„œ '\0'ê°€ ì•„ë‹ ë•Œê¹Œì§€ ië¥¼ 1ì”© ë”í•¨
 	int i = 0;
 	while (s[i] != '\0') {
 		i++;
@@ -605,12 +636,29 @@ int Len(char *s) {
 }
 
 int IsInMap(POSITION _pos) {
+    	// _posì˜ x, y ì¢Œí‘œê°€ ìœ íš¨í•œ ìœ„ì¹˜ì— ìˆì§€ ì•Šë‹¤ë©´ 0ì„ ë°˜í™˜
 	if (_pos.x < 0 || _pos.y < 0 || _pos.y >= mapData[currentLevel].height || _pos.x >= mapData[currentLevel].width)
 		return 0;
 	return 1;
 }
 
+
 void gotoxy(int x, int y) {
-	printf("\033[%d;%df", y, x);
-	fflush(stdout);
+	printf("\033[%d;%df", y, x);		// í„°ë¯¸ë„ ìƒì—ì„œ x, yì¢Œí‘œë¡œ ì»¤ì„œë¥¼ ì´ë™
+	fflush(stdout);				// ì¶œë ¥ ë²„í¼ë¥¼ ë¹„ì›€
+}
+
+int getch(){
+    int c;
+    struct termios oldattr,newattr;
+
+    tcgetattr(STDIN_FILENO,&oldattr);		// í˜„ì¬ í„°ë¯¸ë„ ì„¤ì • ì½ìŒ
+    newattr = oldattr;
+    newattr.c_lflag &= ~(ICANON | ECHO); 	// CANONICALê³¼ ECHO ë”
+    newattr.c_cc[VMIN] = 1;			// ìµœì†Œ ì…ë ¥ ë¬¸ì ìˆ˜ë¥¼ 1ë¡œ ì„¤ì •
+    newattr.c_cc[VTIME] = 0;			// ìµœì†Œ ì½ê¸° ëŒ€ê¸° ì‹œê°„ì„ 0ìœ¼ë¡œ ì„¤ì •
+    tcsetattr(STDIN_FILENO,TCSANOW,&newattr);	// í„°ë¯¸ë„ì— ì„¤ì • ì…ë ¥
+    c = getchar();				// í‚¤ë³´ë“œ ì…ë ¥ ì½ìŒ
+    tcsetattr(STDIN_FILENO,TCSANOW,&oldattr);	// ì›ë˜ì˜ ì„¤ì •ìœ¼ë¡œ ë³µêµ¬
+    return c;
 }
