@@ -1,8 +1,9 @@
 RankingLevel0
 h 10
 h 10
-h 14
-h 14
+SKB_KING 10
+SKB_KING2 10
+SK 10
 RankingLevel1
 RankingLevel2
 RankingLevel3
