@@ -316,7 +316,12 @@ void DisplayHelp() {
 	printf("f(file load)\n");
 	printf("d(display help)\n");
 	printf("t(top)\n");
-	getch();
+
+	char c;
+	do {
+		c = getch();
+	} while (!(c == LF || c == CR));
+
 	system("clear");
 }
 
@@ -496,7 +501,10 @@ void RankingDisplay() {
 		}
 	}
 
-	getch();
+	char c;
+	do {
+		c = getch();
+	} while ( !(c == LF || c == CR));
 	system("clear");
 }
 
